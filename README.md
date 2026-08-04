@@ -16,12 +16,9 @@ Built incrementally:
 | --- | --- |
 | HTTP service + configuration + Docker packaging | done |
 | GitHub webhook receiver (`vulnerability` label filter) | done |
-| Devin API dispatch with remediation playbook prompt | planned |
+| Devin API dispatch with remediation playbook prompt | done |
 
-Until the Devin integration lands, an eligible issue is logged as `would dispatch <repo>#<n>`
-instead of starting a session.
-
-## How the workflow will run
+## How the workflow runs
 
 ```
 GitHub issue labelled "vulnerability"
@@ -45,7 +42,38 @@ An `issues` delivery is dispatched only when **all** of these hold, and is other
 
 Each issue is dispatched at most once per container lifetime, so webhook retries and label churn
 are answered `{"status": "duplicate"}`. The ledger is in memory: restarting the container forgets
-which issues were dispatched.
+which issues were dispatched, so an issue re-labelled after a restart starts a second session.
+
+A successful dispatch answers with the session that will do the work:
+
+```json
+{"status": "dispatched", "issue": "vandenplas/superset#42", "session_id": "devin-abc123"}
+```
+
+If the Devin API rejects or cannot be reached, the delivery gets `502` and the issue is un-claimed,
+so GitHub's retry (or re-labelling) tries again.
+
+## The remediation playbook
+
+Every dispatch sends a structured prompt built from
+[`src/secops_dispatcher/prompts/remediation.md`](src/secops_dispatcher/prompts/remediation.md),
+with `{{placeholders}}` filled in from the issue and configuration. It instructs the agent to:
+
+1. comment `Starting remediation` on the issue and move it to **In Progress** in the project;
+2. branch from `TARGET_BASE_BRANCH` (`master` in `vandenplas/superset`);
+3. upgrade the vulnerable package(s) to the lowest version that fixes the vulnerability;
+4. follow `AGENTS.md` in the target repo for pre-commit checks and tests;
+5. open a PR and move the issue to **In Review**;
+6. comment the resolution on the issue and link it to the PR.
+
+Edit that markdown file to change the instructions — no code change needed. To preview the exact
+prompt for an issue without spending ACUs, run with `DRY_RUN=true`: the dispatcher logs the rendered
+prompt and skips the API call.
+
+The session is created against `TARGET_REPO`, titled `Remediate <repo>#<n>: <issue title>`, and
+tagged `secops-dispatcher` / `vulnerability`, so dispatched work is easy to find in the Devin UI. Set
+`DEVIN_PLAYBOOK_ID` to additionally attach a saved Devin playbook, and `DEVIN_MAX_ACU_LIMIT` to cap
+the spend of each session.
 
 ## Requirements
 
@@ -56,8 +84,16 @@ which issues were dispatched.
   - **write** on `vandenplas/superset` — the Devin agent pushes branches and opens PRs there.
   - **write** on the `Superset SVM` user project (project #2) — the agent moves issues between
     `In Progress` and `In Review`.
-- A Devin API key (`DEVIN_API_KEY`) from https://app.devin.ai/settings/api-keys, used to start
-  remediation sessions. See the [Devin API reference](https://docs.devin.ai/api-reference/overview).
+- Devin API access, used to start remediation sessions:
+  - `DEVIN_API_KEY` — a service-user API key from https://app.devin.ai/settings/api-keys;
+  - `DEVIN_ORG_ID` — your organization id (`org-…`), because sessions are created through the
+    org-scoped v3 endpoint `POST /v3/organizations/{org_id}/sessions`.
+
+  See the [Devin API reference](https://docs.devin.ai/api-reference/overview). Sessions are
+  attributed to the service user; set `DEVIN_CREATE_AS_USER_ID` to attribute them to a human
+  instead (needs the `ImpersonateOrgSessions` permission on the service user's role).
+- The Devin agent needs its own GitHub access to `vandenplas/superset` and the `Superset SVM`
+  project — the dispatcher only starts the session, it never touches GitHub itself.
 
 ## Connecting GitHub to the dispatcher via smee.io
 
@@ -107,15 +143,24 @@ cp .env.example .env
 | `PORT` | `8080` | Bind port |
 | `LOG_LEVEL` | `INFO` | Python log level |
 | `TARGET_REPO` | `vandenplas/superset` | Repository whose issues are dispatched |
+| `TARGET_BASE_BRANCH` | `master` | Default branch of `TARGET_REPO`, branched from for the fix |
 | `VULNERABILITY_LABEL` | `vulnerability` | Only issues with this label are dispatched |
 | `GITHUB_PROJECT_URL` | project #2 URL | Project board the agent updates |
+| `GITHUB_PROJECT_NAME` | `Superset SVM` | Project board name used in the prompt |
 | `SMEE_URL` | _empty_ | smee.io channel relayed by the optional `smee` compose profile |
 | `GITHUB_WEBHOOK_SECRET` | _empty_ | Shared secret used to verify webhook signatures |
-| `DEVIN_API_KEY` | _empty_ | Devin API key used to start sessions |
-| `DEVIN_API_BASE_URL` | `https://api.devin.ai/v1` | Devin API base URL |
+| `DEVIN_API_KEY` | _empty_ | Devin service-user API key used to start sessions |
+| `DEVIN_ORG_ID` | _empty_ | Devin organization id (`org-…`) the sessions belong to |
+| `DEVIN_API_BASE_URL` | `https://api.devin.ai` | Devin API base URL |
+| `DEVIN_REQUEST_TIMEOUT_SECONDS` | `30` | Timeout for Devin API requests |
+| `DEVIN_PLAYBOOK_ID` | _empty_ | Optional saved Devin playbook to attach to each session |
+| `DEVIN_MAX_ACU_LIMIT` | _empty_ | Optional ACU cap per session |
+| `DEVIN_CREATE_AS_USER_ID` | _empty_ | Optional user (`user-…`) to attribute sessions to |
+| `DRY_RUN` | `false` | Log the rendered prompt instead of calling the Devin API |
 
-`DEVIN_API_KEY` is unused until the Devin integration lands. `.env` is git-ignored — keep secrets out
-of commits.
+Without `DEVIN_API_KEY` and `DEVIN_ORG_ID` the dispatcher still starts, but degrades to dry-run mode
+so health checks and webhook wiring can be verified before the credentials are in place;
+`GET /config` reports which mode is active as `dispatch_mode`. `.env` is git-ignored — keep secrets out of commits.
 
 ## Running with Docker
 
@@ -141,8 +186,10 @@ curl -s localhost:8080/webhooks/github \
   -H 'X-GitHub-Event: issues' \
   -H "X-Hub-Signature-256: $SIG" \
   -d "$BODY"
-# {"status":"dispatched","issue":"vandenplas/superset#1","session_id":null}
+# {"status":"dispatched","issue":"vandenplas/superset#1","session_id":"devin-abc123"}
 ```
+
+Run with `DRY_RUN=true` to see the prompt that would be sent (`session_id` comes back `null`).
 
 ## Running locally without Docker
 

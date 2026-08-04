@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .config import Settings
+from .devin_client import DevinDispatcher
 from .models import IssueEvent, VulnerabilityIssue
+from .playbook import render_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -53,21 +55,50 @@ def evaluate(event: IssueEvent, settings: Settings) -> Decision:
 
 
 class Dispatcher(Protocol):
-    """Starts remediation for an issue. Implemented against the Devin API in a later step."""
+    """Starts remediation for an issue, returning the Devin session id when one was created."""
 
     def dispatch(self, issue: VulnerabilityIssue) -> str | None: ...
 
 
-class LoggingDispatcher:
-    """Placeholder dispatcher: records the issue instead of starting a Devin session."""
+class DryRunDispatcher:
+    """Logs the remediation prompt instead of starting a Devin session."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
         self.dispatched: list[VulnerabilityIssue] = []
 
     def dispatch(self, issue: VulnerabilityIssue) -> str | None:
         self.dispatched.append(issue)
-        logger.info("would dispatch %s for remediation: %s", issue.key, issue.url)
+        logger.info(
+            "dry run: would dispatch %s for remediation with prompt:\n%s",
+            issue.key,
+            render_prompt(issue, self._settings),
+        )
         return None
+
+
+def select_dispatcher(settings: Settings) -> tuple[Dispatcher, str]:
+    """Pick the dispatcher the configuration asks for, and name the mode for logs and /config.
+
+    A missing API key degrades to a dry run rather than failing startup, so the service still
+    answers health checks and webhook deliveries while it is being configured.
+    """
+    if settings.dry_run:
+        return DryRunDispatcher(settings), "dry-run"
+
+    missing = [
+        name
+        for name, value in (
+            ("DEVIN_API_KEY", settings.devin_api_key),
+            ("DEVIN_ORG_ID", settings.devin_org_id),
+        )
+        if not value
+    ]
+    if missing:
+        logger.warning("%s not set: falling back to dry-run dispatching", " and ".join(missing))
+        return DryRunDispatcher(settings), f"dry-run ({' and '.join(missing)} not set)"
+
+    return DevinDispatcher(settings), "devin-api"
 
 
 class DispatchLedger:
