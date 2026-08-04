@@ -19,8 +19,9 @@ services:
         required: false
     depends_on:
       - dispatcher
+    # SMEE_URL comes from .env inside the container ($$ keeps compose from interpolating it),
+    # so an unset channel URL fails loudly instead of starting smee-client with an empty --url.
     command: >
-      npx --yes smee-client@4.4.3
-      --url $SMEE_URL
-      --target http://dispatcher:8080/webhooks/github
-    restart: unless-stopped
+      sh -c 'test -n "$$SMEE_URL" || { echo "SMEE_URL is not set: put your smee.io channel URL in .env"; exit 1; };
+      exec npx --yes smee-client@4.4.3 --url "$$SMEE_URL" --target http://dispatcher:8080/webhooks/github'
+    restart: "on-failure:3"

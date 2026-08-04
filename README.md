@@ -80,7 +80,8 @@ GitHub cannot reach a container on your laptop, so deliveries are relayed throug
    docker compose --profile smee up --build
    ```
    The `smee` service runs `smee-client` and forwards each delivery to
-   `http://dispatcher:8080/webhooks/github`.
+   `http://dispatcher:8080/webhooks/github`. It exits with
+   `SMEE_URL is not set` if you skipped step 1.
 5. Confirm the wiring: GitHub's webhook page → **Recent Deliveries** shows the `ping` event, and the
    dispatcher answers `{"status": "pong"}`. Then label an issue `vulnerability` and watch the logs:
    ```bash
