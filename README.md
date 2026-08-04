@@ -63,7 +63,7 @@ with `{{placeholders}}` filled in from the issue and configuration. It instructs
 2. branch from `TARGET_BASE_BRANCH` (`master` in `vandenplas/superset`);
 3. upgrade the vulnerable package(s) to the lowest version that fixes the vulnerability;
 4. follow `AGENTS.md` in the target repo for pre-commit checks and tests;
-5. open a PR and move the issue to **In Review**;
+5. open a PR and move the issue to **In Review**, verifying the item's `Status` afterwards;
 6. comment the resolution on the issue and link it to the PR.
 
 Edit that markdown file to change the instructions — no code change needed. To preview the exact
@@ -83,7 +83,10 @@ the spend of each session.
   - **admin** on `vandenplas/superset` — needed to create the webhook that feeds the dispatcher.
   - **write** on `vandenplas/superset` — the Devin agent pushes branches and opens PRs there.
   - **write** on the `Superset SVM` user project (project #2) — the agent moves issues between
-    `In Progress` and `In Review`.
+    `In Progress` and `In Review`. This one cannot come from the agent's own GitHub credentials:
+    the Devin GitHub app cannot write ProjectV2 fields (`updateProjectV2ItemFieldValue` fails with
+    `FORBIDDEN: Resource not accessible by integration`), so the dispatcher forwards a PAT instead —
+    see [Project board access](#project-board-access).
 - Devin API access, used to start remediation sessions:
   - `DEVIN_API_KEY` — a service-user API key from https://app.devin.ai/settings/api-keys;
   - `DEVIN_ORG_ID` — your organization id (`org-…`), because sessions are created through the
@@ -92,8 +95,24 @@ the spend of each session.
   See the [Devin API reference](https://docs.devin.ai/api-reference/overview). Sessions are
   attributed to the service user; set `DEVIN_CREATE_AS_USER_ID` to attribute them to a human
   instead (needs the `ImpersonateOrgSessions` permission on the service user's role).
-- The Devin agent needs its own GitHub access to `vandenplas/superset` and the `Superset SVM`
-  project — the dispatcher only starts the session, it never touches GitHub itself.
+- The Devin agent needs its own GitHub access to `vandenplas/superset` — the dispatcher only starts
+  the session, it never touches GitHub itself.
+
+### Project board access
+
+Set `GITHUB_PROJECT_TOKEN` to a PAT that can write the project, either
+
+- a **fine-grained** token (https://github.com/settings/personal-access-tokens/new) with
+  **Account permissions → Projects: Read and write** — repository access is not needed, the token is
+  only used for board moves; or
+- a **classic** token (https://github.com/settings/tokens) with the `project` scope.
+
+The dispatcher forwards it to each session as a session-scoped secret named `GITHUB_PROJECT_TOKEN`,
+and the prompt tells the agent to use it (via `GH_TOKEN`) for the two `updateProjectV2ItemFieldValue`
+mutations. Leave it unset and the dispatcher still works, but the agent is told upfront that it
+probably cannot move the item and must report the step as not done rather than assume it worked —
+the board's own automation rules can move items on "item added" or "PR linked", which looks
+identical to the agent having done it.
 
 ## Connecting GitHub to the dispatcher via smee.io
 
@@ -149,6 +168,7 @@ cp .env.example .env
 | `GITHUB_PROJECT_NAME` | `Superset SVM` | Project board name used in the prompt |
 | `SMEE_URL` | _empty_ | smee.io channel relayed by the optional `smee` compose profile |
 | `GITHUB_WEBHOOK_SECRET` | _empty_ | Shared secret used to verify webhook signatures |
+| `GITHUB_PROJECT_TOKEN` | _empty_ | GitHub PAT with project write access, passed to the session for the board moves |
 | `DEVIN_API_KEY` | _empty_ | Devin service-user API key used to start sessions |
 | `DEVIN_ORG_ID` | _empty_ | Devin organization id (`org-…`) the sessions belong to |
 | `DEVIN_API_BASE_URL` | `https://api.devin.ai` | Devin API base URL |

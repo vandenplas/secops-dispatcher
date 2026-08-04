@@ -40,6 +40,15 @@ class DevinDispatcher:
             "tags": ["secops-dispatcher", "vulnerability"],
             "repos": [issue.repo],
         }
+        if settings.github_project_token:
+            # Session-scoped, so the token is not stored in the organization's secrets.
+            payload["session_secrets"] = [
+                {
+                    "key": "GITHUB_PROJECT_TOKEN",
+                    "value": settings.github_project_token,
+                    "sensitive": True,
+                }
+            ]
         if settings.devin_playbook_id:
             payload["playbook_id"] = settings.devin_playbook_id
         if settings.devin_max_acu_limit is not None:
