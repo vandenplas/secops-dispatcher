@@ -79,16 +79,22 @@ Stop with `docker compose down`.
 
 ## Running locally without Docker
 
+Requires Python 3.11+. Name the interpreter explicitly — creating the venv from an older
+`python3` makes dependency resolution backtrack for minutes instead of failing fast.
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 make install                   # pip install -e ".[dev]"
 make run                       # serves on $HOST:$PORT
 ```
 
 ## Development
 
+Activate the venv first (`source .venv/bin/activate`), otherwise these targets can't find the tools:
+
 ```bash
-make lint                      # ruff check
+make lint                      # ruff check + ruff format --check
+make fmt                       # ruff format (rewrites files)
 make test                      # pytest
 ```
 
