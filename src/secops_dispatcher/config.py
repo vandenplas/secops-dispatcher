@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Only issues carrying this label are dispatched.
     vulnerability_label: str = "vulnerability"
 
+    # Issues also carrying this label are remediated without running the target repo's tests, so a
+    # pull request appears in minutes. Intended for demos; the prompt marks the PR as unverified.
+    demo_label: str = "demo"
+
     # Branch the remediation work is based on: the target repo's default branch.
     target_base_branch: str = "master"
 

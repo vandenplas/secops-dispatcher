@@ -85,6 +85,15 @@ def test_opened_issue_with_label_is_dispatched(
     assert len(dispatcher.dispatched) == 1
 
 
+def test_issue_labels_reach_the_dispatcher(
+    client: TestClient, dispatcher: DryRunDispatcher
+) -> None:
+    """The demo fast path is chosen from the labels, so they must survive the conversion."""
+    payload = issue_payload(action="opened", labels=["vulnerability", "demo"], added_label=None)
+    post(client, payload)
+    assert dispatcher.dispatched[0].labels == ["vulnerability", "demo"]
+
+
 def test_missing_signature_is_rejected(client: TestClient, dispatcher: DryRunDispatcher) -> None:
     response = client.post(
         "/webhooks/github", json=issue_payload(), headers={"X-GitHub-Event": "issues"}

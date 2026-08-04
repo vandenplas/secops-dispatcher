@@ -27,9 +27,7 @@ Issue body:
 3. Upgrade the vulnerable package(s) identified in the issue to the lowest version that fixes the
    vulnerability. Change only what is needed to fix it — do not upgrade unrelated dependencies. If
    the fixed version is unclear from the issue, determine it from the linked advisory (CVE/GHSA).
-4. Read `AGENTS.md` in `{{repo}}` and follow its instructions for pre-commit checks and for running
-   the tests, to verify the software still functions with the upgraded packages. If tests fail
-   because of the upgrade, fix the incompatibility as part of this work.
+4. {{verification_step}}
 5. Open a pull request with your changes, then move the issue to **In Review** in the
    "{{project_name}}" GitHub Project.
 6. Comment on issue #{{issue_number}} with the resolution — the package(s) upgraded, the versions

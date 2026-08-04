@@ -62,9 +62,13 @@ with `{{placeholders}}` filled in from the issue and configuration. It instructs
 1. comment `Starting remediation` on the issue and move it to **In Progress** in the project;
 2. branch from `TARGET_BASE_BRANCH` (`master` in `vandenplas/superset`);
 3. upgrade the vulnerable package(s) to the lowest version that fixes the vulnerability;
-4. follow `AGENTS.md` in the target repo for pre-commit checks and tests;
+4. follow `AGENTS.md` in the target repo for pre-commit checks and tests — unless the issue also
+   carries the `DEMO_LABEL`, see [Demo mode](#demo-mode);
 5. open a PR and move the issue to **In Review**, verifying the item's `Status` afterwards;
 6. comment the resolution on the issue and link it to the PR.
+
+Step 4 comes from a second file, [`verify_full.md`](src/secops_dispatcher/prompts/verify_full.md) or
+[`verify_fast.md`](src/secops_dispatcher/prompts/verify_fast.md), chosen by the demo label.
 
 Edit that markdown file to change the instructions — no code change needed. To preview the exact
 prompt for an issue without spending ACUs, run with `DRY_RUN=true`: the dispatcher logs the rendered
@@ -74,6 +78,23 @@ The session is created against `TARGET_REPO`, titled `Remediate <repo>#<n>: <iss
 tagged `secops-dispatcher` / `vulnerability`, so dispatched work is easy to find in the Devin UI. Set
 `DEVIN_PLAYBOOK_ID` to additionally attach a saved Devin playbook, and `DEVIN_MAX_ACU_LIMIT` to cap
 the spend of each session.
+
+### Demo mode
+
+Verification dominates the wall clock: pip-compiling Superset's requirement files and running its
+unit suite take most of an hour, so a remediation PR normally appears ~25-60 minutes after the issue
+is labelled. That is right for real operation but too slow to watch live.
+
+Label an issue **both** `vulnerability` and `demo` and the prompt swaps step 4 for a fast path: bump
+the pinned versions in place, no pip-compile, no test suite, at most `pre-commit run --files` on what
+changed. Expect a PR in a few minutes, and the board to move to In Progress almost immediately.
+
+The agent is required to open the PR description with
+
+> Tests were skipped: dispatched with the demo label. Not verified — do not merge.
+
+and to repeat that in the resolution comment, so a demo PR cannot be mistaken for a verified one.
+Rename the label with `DEMO_LABEL`, or set `DEMO_LABEL=` to remove the fast path entirely.
 
 ## Requirements
 
@@ -102,10 +123,11 @@ the spend of each session.
 
 Set `GITHUB_PROJECT_TOKEN` to a PAT that can write the project, either
 
-- a **fine-grained** token (https://github.com/settings/personal-access-tokens/new) with
-  **Account permissions → Projects: Read and write** — repository access is not needed, the token is
-  only used for board moves; or
-- a **classic** token (https://github.com/settings/tokens) with the `project` scope.
+- a **classic** token (https://github.com/settings/tokens/new) with the `project` scope and nothing
+  else — the token is only used for board moves; or
+- a **fine-grained** token with **Account permissions → Projects: Read and write**. That section only
+  appears when the token's resource owner is the user who owns the project, so classic is usually the
+  quicker route.
 
 The dispatcher forwards it to each session as a session-scoped secret named `GITHUB_PROJECT_TOKEN`,
 and the prompt tells the agent to use it (via `GH_TOKEN`) for the two `updateProjectV2ItemFieldValue`
@@ -164,6 +186,7 @@ cp .env.example .env
 | `TARGET_REPO` | `vandenplas/superset` | Repository whose issues are dispatched |
 | `TARGET_BASE_BRANCH` | `master` | Default branch of `TARGET_REPO`, branched from for the fix |
 | `VULNERABILITY_LABEL` | `vulnerability` | Only issues with this label are dispatched |
+| `DEMO_LABEL` | `demo` | Issues also carrying this label skip the target repo's tests (see [Demo mode](#demo-mode)); set empty to disable |
 | `GITHUB_PROJECT_URL` | project #2 URL | Project board the agent updates |
 | `GITHUB_PROJECT_NAME` | `Superset SVM` | Project board name used in the prompt |
 | `SMEE_URL` | _empty_ | smee.io channel relayed by the optional `smee` compose profile |
