@@ -47,6 +47,7 @@ class VulnerabilityIssue(BaseModel):
     title: str
     url: str
     body: str = ""
+    labels: list[str] = Field(default_factory=list)
 
     @property
     def key(self) -> str:

@@ -50,6 +50,7 @@ def evaluate(event: IssueEvent, settings: Settings) -> Decision:
         title=event.issue.title,
         url=event.issue.html_url,
         body=event.issue.body or "",
+        labels=event.issue.label_names,
     )
     return Decision(True, f"issue is labelled {label}", issue)
 

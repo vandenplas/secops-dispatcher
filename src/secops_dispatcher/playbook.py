@@ -53,7 +53,12 @@ def render_prompt(issue: VulnerabilityIssue, settings: Settings) -> str:
         "project_owner": owner,
         "project_number": str(number),
         "base_branch": settings.target_base_branch,
+        "demo_label": settings.demo_label,
     }
+    fast_path = bool(settings.demo_label) and settings.demo_label in issue.labels
+    values["verification_step"] = _substitute(
+        load_template("verify_fast.md" if fast_path else "verify_full.md"), values
+    ).strip()
     values["board_access"] = (
         _substitute(load_template("board_access.md"), values).strip()
         if settings.github_project_token

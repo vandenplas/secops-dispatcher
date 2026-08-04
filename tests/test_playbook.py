@@ -53,6 +53,37 @@ def test_prompt_uses_the_configured_base_branch() -> None:
     assert "`main`" not in prompt
 
 
+def test_prompt_keeps_the_verification_step_without_the_demo_label() -> None:
+    prompt = render_prompt(ISSUE, Settings())
+    assert "Read `AGENTS.md`" in prompt
+    assert "Skip verification" not in prompt
+
+
+def test_demo_label_replaces_verification_with_a_fast_path() -> None:
+    issue = ISSUE.model_copy(update={"labels": ["vulnerability", "demo"]})
+    prompt = render_prompt(issue, Settings())
+    assert "Skip verification" in prompt
+    assert "do not merge" in prompt
+    # The whole point of the fast path: no test suite and no lockfile regeneration.
+    assert "do **not** run the test suite" in prompt
+    assert "Read `AGENTS.md`" not in prompt
+    assert "{{" not in prompt
+
+
+def test_demo_label_is_configurable_and_matched_exactly() -> None:
+    issue = ISSUE.model_copy(update={"labels": ["vulnerability", "demo"]})
+    settings = Settings(demo_label="fast-path")
+    assert "Read `AGENTS.md`" in render_prompt(issue, settings)
+
+    labelled = ISSUE.model_copy(update={"labels": ["vulnerability", "fast-path"]})
+    assert "`fast-path` label" in render_prompt(labelled, settings)
+
+
+def test_empty_demo_label_disables_the_fast_path() -> None:
+    issue = ISSUE.model_copy(update={"labels": ["vulnerability", ""]})
+    assert "Read `AGENTS.md`" in render_prompt(issue, Settings(demo_label=""))
+
+
 def test_prompt_explains_how_to_move_the_board_when_a_token_is_configured() -> None:
     prompt = render_prompt(ISSUE, Settings(github_project_token="ghp_board"))
     assert "GITHUB_PROJECT_TOKEN" in prompt
