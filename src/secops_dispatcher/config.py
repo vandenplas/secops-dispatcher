@@ -1,7 +1,16 @@
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _empty_to_none(value: object) -> object:
+    """Treat `KEY=` in a .env file as unset rather than as an invalid value."""
+    return None if value == "" else value
+
+
+OptionalInt = Annotated[int | None, BeforeValidator(_empty_to_none)]
 
 
 class Settings(BaseSettings):
@@ -26,12 +35,24 @@ class Settings(BaseSettings):
 
     # GitHub project used for issue tracking visibility.
     github_project_url: str = "https://github.com/users/vandenplas/projects/2"
+    github_project_name: str = "Superset SVM"
 
-    # Secrets. Left empty in the skeleton; consumed by later integrations.
     github_webhook_secret: str = Field(default="", repr=False)
     devin_api_key: str = Field(default="", repr=False)
 
-    devin_api_base_url: str = "https://api.devin.ai/v1"
+    # Sessions are created through the v3 API, which is scoped to an organization.
+    devin_api_base_url: str = "https://api.devin.ai"
+    devin_org_id: str = ""
+    devin_request_timeout_seconds: float = 30.0
+
+    # Optional Devin session tuning.
+    devin_playbook_id: str = ""
+    devin_max_acu_limit: OptionalInt = None
+    devin_create_as_user_id: str = ""
+
+    # Log the rendered prompt instead of calling the Devin API. Useful for reviewing the
+    # remediation instructions, or running the webhook plumbing without spending ACUs.
+    dry_run: bool = False
 
     def redacted(self) -> dict[str, object]:
         """Config snapshot safe for logging: secrets are reported as set/unset only."""

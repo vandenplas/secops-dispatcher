@@ -5,19 +5,19 @@ from fastapi.testclient import TestClient
 
 from secops_dispatcher.app import create_app
 from secops_dispatcher.config import Settings
-from secops_dispatcher.dispatch import LoggingDispatcher
+from secops_dispatcher.dispatch import DryRunDispatcher
 from secops_dispatcher.signature import expected_signature
 
 SECRET = "hook-secret"
 
 
 @pytest.fixture
-def dispatcher() -> LoggingDispatcher:
-    return LoggingDispatcher()
+def dispatcher() -> DryRunDispatcher:
+    return DryRunDispatcher(Settings())
 
 
 @pytest.fixture
-def client(dispatcher: LoggingDispatcher) -> TestClient:
+def client(dispatcher: DryRunDispatcher) -> TestClient:
     settings = Settings(github_webhook_secret=SECRET, target_repo="vandenplas/superset")
     return TestClient(create_app(settings, dispatcher))
 
@@ -68,7 +68,7 @@ def test_ping_is_acknowledged(client: TestClient) -> None:
 
 
 def test_labeled_vulnerability_issue_is_dispatched(
-    client: TestClient, dispatcher: LoggingDispatcher
+    client: TestClient, dispatcher: DryRunDispatcher
 ) -> None:
     response = post(client, issue_payload())
     assert response.status_code == 200
@@ -78,14 +78,14 @@ def test_labeled_vulnerability_issue_is_dispatched(
 
 
 def test_opened_issue_with_label_is_dispatched(
-    client: TestClient, dispatcher: LoggingDispatcher
+    client: TestClient, dispatcher: DryRunDispatcher
 ) -> None:
     payload = issue_payload(action="opened", added_label=None)
     assert post(client, payload).json()["status"] == "dispatched"
     assert len(dispatcher.dispatched) == 1
 
 
-def test_missing_signature_is_rejected(client: TestClient, dispatcher: LoggingDispatcher) -> None:
+def test_missing_signature_is_rejected(client: TestClient, dispatcher: DryRunDispatcher) -> None:
     response = client.post(
         "/webhooks/github", json=issue_payload(), headers={"X-GitHub-Event": "issues"}
     )
@@ -93,13 +93,13 @@ def test_missing_signature_is_rejected(client: TestClient, dispatcher: LoggingDi
     assert dispatcher.dispatched == []
 
 
-def test_wrong_signature_is_rejected(client: TestClient, dispatcher: LoggingDispatcher) -> None:
+def test_wrong_signature_is_rejected(client: TestClient, dispatcher: DryRunDispatcher) -> None:
     response = post(client, issue_payload(), secret="wrong-secret")
     assert response.status_code == 401
     assert dispatcher.dispatched == []
 
 
-def test_tampered_body_is_rejected(client: TestClient, dispatcher: LoggingDispatcher) -> None:
+def test_tampered_body_is_rejected(client: TestClient, dispatcher: DryRunDispatcher) -> None:
     body = json.dumps(issue_payload()).encode()
     response = client.post(
         "/webhooks/github",
@@ -113,7 +113,7 @@ def test_tampered_body_is_rejected(client: TestClient, dispatcher: LoggingDispat
     assert dispatcher.dispatched == []
 
 
-def test_unconfigured_secret_rejects_delivery(dispatcher: LoggingDispatcher) -> None:
+def test_unconfigured_secret_rejects_delivery(dispatcher: DryRunDispatcher) -> None:
     client = TestClient(create_app(Settings(github_webhook_secret=""), dispatcher))
     response = post(client, issue_payload(), secret="anything")
     assert response.status_code == 503
@@ -135,7 +135,7 @@ def test_unconfigured_secret_rejects_delivery(dispatcher: LoggingDispatcher) -> 
     ],
 )
 def test_non_dispatchable_events_are_ignored(
-    client: TestClient, dispatcher: LoggingDispatcher, payload: dict, reason_fragment: str
+    client: TestClient, dispatcher: DryRunDispatcher, payload: dict, reason_fragment: str
 ) -> None:
     response = post(client, payload)
     assert response.status_code == 200
@@ -145,7 +145,7 @@ def test_non_dispatchable_events_are_ignored(
     assert dispatcher.dispatched == []
 
 
-def test_other_event_types_are_ignored(client: TestClient, dispatcher: LoggingDispatcher) -> None:
+def test_other_event_types_are_ignored(client: TestClient, dispatcher: DryRunDispatcher) -> None:
     response = post(client, {"action": "opened"}, event="pull_request")
     assert response.json()["status"] == "ignored"
     assert dispatcher.dispatched == []
@@ -156,7 +156,7 @@ def test_malformed_issues_payload_is_unprocessable(client: TestClient) -> None:
 
 
 def test_redelivery_does_not_dispatch_twice(
-    client: TestClient, dispatcher: LoggingDispatcher
+    client: TestClient, dispatcher: DryRunDispatcher
 ) -> None:
     payload = issue_payload()
     assert post(client, payload).json()["status"] == "dispatched"
