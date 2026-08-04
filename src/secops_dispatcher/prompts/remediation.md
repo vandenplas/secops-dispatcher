@@ -18,7 +18,7 @@ Issue body:
 
 1. Comment `Starting remediation` on issue #{{issue_number}} in `{{repo}}`, then move the issue to
    **In Progress** in the "{{project_name}}" GitHub Project.
-2. Create a new branch from `main` in `{{repo}}` for the remediation work.
+2. Create a new branch from `{{base_branch}}` in `{{repo}}` for the remediation work.
 3. Upgrade the vulnerable package(s) identified in the issue to the lowest version that fixes the
    vulnerability. Change only what is needed to fix it — do not upgrade unrelated dependencies. If
    the fixed version is unclear from the issue, determine it from the linked advisory (CVE/GHSA).
@@ -33,6 +33,9 @@ Issue body:
 
 ## Notes
 
+- Opening the pull request is not the end of the job: steps 5 and 6 are only complete once the issue
+  sits in **In Review** and carries the resolution comment. Verify both on the board and on the
+  issue before you finish your turn.
 - If you cannot determine a fixed version, or the upgrade cannot be made to pass the checks in
   `AGENTS.md`, stop and explain the blocker in a comment on the issue instead of opening a PR that
   does not build.

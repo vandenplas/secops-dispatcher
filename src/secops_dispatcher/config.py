@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Only issues carrying this label are dispatched.
     vulnerability_label: str = "vulnerability"
 
+    # Branch the remediation work is based on: the target repo's default branch.
+    target_base_branch: str = "master"
+
     # GitHub project used for issue tracking visibility.
     github_project_url: str = "https://github.com/users/vandenplas/projects/2"
     github_project_name: str = "Superset SVM"

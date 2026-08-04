@@ -60,7 +60,7 @@ Every dispatch sends a structured prompt built from
 with `{{placeholders}}` filled in from the issue and configuration. It instructs the agent to:
 
 1. comment `Starting remediation` on the issue and move it to **In Progress** in the project;
-2. branch from `main`;
+2. branch from `TARGET_BASE_BRANCH` (`master` in `vandenplas/superset`);
 3. upgrade the vulnerable package(s) to the lowest version that fixes the vulnerability;
 4. follow `AGENTS.md` in the target repo for pre-commit checks and tests;
 5. open a PR and move the issue to **In Review**;
@@ -143,6 +143,7 @@ cp .env.example .env
 | `PORT` | `8080` | Bind port |
 | `LOG_LEVEL` | `INFO` | Python log level |
 | `TARGET_REPO` | `vandenplas/superset` | Repository whose issues are dispatched |
+| `TARGET_BASE_BRANCH` | `master` | Default branch of `TARGET_REPO`, branched from for the fix |
 | `VULNERABILITY_LABEL` | `vulnerability` | Only issues with this label are dispatched |
 | `GITHUB_PROJECT_URL` | project #2 URL | Project board the agent updates |
 | `GITHUB_PROJECT_NAME` | `Superset SVM` | Project board name used in the prompt |

@@ -29,6 +29,7 @@ def render_prompt(issue: VulnerabilityIssue, settings: Settings) -> str:
         "issue_body": issue.body.strip() or "(the issue has no description)",
         "project_name": settings.github_project_name,
         "project_url": settings.github_project_url,
+        "base_branch": settings.target_base_branch,
     }
 
     def substitute(match: re.Match[str]) -> str:

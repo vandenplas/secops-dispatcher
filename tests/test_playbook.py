@@ -22,7 +22,7 @@ def test_prompt_covers_every_required_step() -> None:
     markers = [
         "Starting remediation",
         "In Progress",
-        "branch from `main`",
+        f"branch from `{Settings().target_base_branch}`",
         "Upgrade the vulnerable package",
         "AGENTS.md",
         "In Review",
@@ -45,6 +45,12 @@ def test_prompt_substitutes_issue_and_project_details() -> None:
 def test_prompt_handles_empty_issue_body() -> None:
     issue = ISSUE.model_copy(update={"body": ""})
     assert "(the issue has no description)" in render_prompt(issue, Settings())
+
+
+def test_prompt_uses_the_configured_base_branch() -> None:
+    prompt = render_prompt(ISSUE, Settings(target_base_branch="trunk"))
+    assert "branch from `trunk`" in prompt
+    assert "`main`" not in prompt
 
 
 def test_prompt_follows_configured_project() -> None:
