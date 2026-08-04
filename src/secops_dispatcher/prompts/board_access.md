@@ -29,5 +29,8 @@ gh api graphql -f query='
   }) { projectV2Item { id } } }'
 ```
 
-After each move, read the item's `Status` back and confirm both the value **and** that you are the
-actor who set it. If the issue is not on the board yet, add it with `addProjectV2ItemById`.
+After each move, read the item's `Status` back and confirm the new value. Treat any `FORBIDDEN`
+response as the step having failed, and say so on the issue — do not assume a move worked because the
+board happens to show the right column. (`Status.creator` is the login that first set the field, not
+the last actor, so it is not evidence either way.) If the issue is not on the board yet, add it with
+`addProjectV2ItemById`.
