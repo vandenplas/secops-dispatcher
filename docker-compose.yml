@@ -8,3 +8,19 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+
+  # Forwards deliveries from a smee.io channel to the dispatcher, so GitHub can reach a
+  # container running on a laptop. Start with: docker compose --profile smee up --build
+  smee:
+    image: node:22-alpine
+    profiles: [smee]
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - dispatcher
+    command: >
+      npx --yes smee-client@4.4.3
+      --url $SMEE_URL
+      --target http://dispatcher:8080/webhooks/github
+    restart: unless-stopped
