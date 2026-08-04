@@ -18,6 +18,31 @@ Built incrementally:
 | GitHub webhook receiver (`vulnerability` label filter) | done |
 | Devin API dispatch with remediation playbook prompt | done |
 
+## Quick start
+
+Nothing is wired up on the GitHub side until you do it: a repository has no webhook until someone
+creates one, so a fresh clone of this repo will never receive a delivery no matter how the issue is
+labelled. In order:
+
+1. **Gather credentials** — a Devin API key and org id, and a PAT that can write the project board.
+   See [Requirements](#requirements) and [Project board access](#project-board-access).
+2. **Create the `.env`** — `cp .env.example .env`, then fill in `DEVIN_API_KEY`, `DEVIN_ORG_ID`,
+   `GITHUB_PROJECT_TOKEN`, and a fresh `GITHUB_WEBHOOK_SECRET` (`openssl rand -hex 32`). See
+   [Configuration](#configuration).
+3. **Open a smee.io channel** — https://smee.io/new, and put the URL in `.env` as `SMEE_URL`.
+4. **Create the webhook on the target repository** — this is a manual, one-time step in
+   `vandenplas/superset` → Settings → Webhooks, pointing at the smee URL with the same secret. See
+   [Create the GitHub webhook](#create-the-github-webhook-via-smeeio).
+5. **Start the dispatcher and the relay** — `docker compose --profile smee up --build`. The relay
+   must be running for deliveries to reach the container; a delivery that arrives while it is down is
+   lost (GitHub records it as failed, and you can redeliver it from the webhook page).
+6. **Label an issue `vulnerability`** in the target repository and watch
+   `docker compose logs -f dispatcher`. Add `demo` as well for a fast run — see
+   [Demo mode](#demo-mode).
+
+Steps 1-4 are once per setup; the webhook and the smee channel survive container restarts. If you
+change the smee channel, update both `.env` and the webhook's payload URL.
+
 ## How the workflow runs
 
 ```
@@ -136,9 +161,11 @@ probably cannot move the item and must report the step as not done rather than a
 the board's own automation rules can move items on "item added" or "PR linked", which looks
 identical to the agent having done it.
 
-## Connecting GitHub to the dispatcher via smee.io
+## Create the GitHub webhook (via smee.io)
 
-GitHub cannot reach a container on your laptop, so deliveries are relayed through a
+This is manual setup you have to do once, by hand, in the target repository's settings — the
+dispatcher cannot create it for you, and an empty **Settings → Webhooks** page means no delivery will
+ever arrive. GitHub also cannot reach a container on your laptop, so deliveries are relayed through a
 [smee.io](https://smee.io) channel.
 
 1. Open https://smee.io/new and copy the channel URL, then put it in `.env` as
@@ -164,6 +191,14 @@ GitHub cannot reach a container on your laptop, so deliveries are relayed throug
    ```bash
    docker compose logs -f dispatcher
    ```
+
+Delivery is near-instant — a second or two from creating the issue to the dispatcher logging it — so
+nothing appearing is a wiring problem rather than latency. **Recent Deliveries** distinguishes the
+cases: no delivery at all means the webhook or its event selection is wrong; a delivery with no
+response means the `smee` service isn't running; `401` means the webhook secret and
+`GITHUB_WEBHOOK_SECRET` differ; and `200 {"status": "ignored", ...}` means the dispatcher saw it and
+the `reason` says why (most often the issue not carrying the `vulnerability` label). Use
+**Redeliver** on a delivery to retry it once the cause is fixed.
 
 The smee.io channel URL is effectively public — anyone with it can post payloads. The signature
 check is what makes this safe, so never run the dispatcher with an empty `GITHUB_WEBHOOK_SECRET`
