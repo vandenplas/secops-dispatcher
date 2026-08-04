@@ -53,8 +53,35 @@ def test_prompt_uses_the_configured_base_branch() -> None:
     assert "`main`" not in prompt
 
 
+def test_prompt_explains_how_to_move_the_board_when_a_token_is_configured() -> None:
+    prompt = render_prompt(ISSUE, Settings(github_project_token="ghp_board"))
+    assert "GITHUB_PROJECT_TOKEN" in prompt
+    assert "updateProjectV2ItemFieldValue" in prompt
+    # GraphQL coordinates come from the project URL, not from separate settings.
+    assert 'user(login: "vandenplas")' in prompt
+    assert "projectV2(number: 2)" in prompt
+    assert "{{" not in prompt
+
+
+def test_prompt_warns_about_board_access_without_a_token() -> None:
+    prompt = render_prompt(ISSUE, Settings(github_project_token=""))
+    assert "GITHUB_PROJECT_TOKEN" not in prompt
+    assert "FORBIDDEN" in prompt
+    assert "{{" not in prompt
+
+
+def test_prompt_uses_organization_projects_when_the_url_says_so() -> None:
+    settings = Settings(
+        github_project_url="https://github.com/orgs/acme/projects/7",
+        github_project_token="ghp_board",
+    )
+    assert 'organization(login: "acme")' in render_prompt(ISSUE, settings)
+    assert "projectV2(number: 7)" in render_prompt(ISSUE, settings)
+
+
 def test_prompt_follows_configured_project() -> None:
     settings = Settings(github_project_name="Other Board", github_project_url="https://x/y")
+    # An unparseable project URL must still render, just without GraphQL coordinates.
     prompt = render_prompt(ISSUE, settings)
     assert "Other Board" in prompt
     assert "https://x/y" in prompt

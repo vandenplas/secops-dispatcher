@@ -64,6 +64,7 @@ def test_posts_session_request_and_returns_session_id() -> None:
     assert "playbook_id" not in payload
     assert "max_acu_limit" not in payload
     assert "create_as_user_id" not in payload
+    assert "session_secrets" not in payload
 
     prompt = payload["prompt"]
     assert ISSUE.url in prompt
@@ -114,6 +115,19 @@ def test_response_without_session_id_raises() -> None:
     dispatcher = make_dispatcher(lambda request: httpx.Response(200, json={"url": "x"}))
     with pytest.raises(DevinApiError, match="no session_id"):
         dispatcher.dispatch(ISSUE)
+
+
+def test_project_token_is_passed_as_a_session_secret() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["json"] = __import__("json").loads(request.content)
+        return httpx.Response(200, json={"session_id": "devin-1"})
+
+    make_dispatcher(handler, github_project_token="ghp_board").dispatch(ISSUE)
+    assert captured["json"]["session_secrets"] == [
+        {"key": "GITHUB_PROJECT_TOKEN", "value": "ghp_board", "sensitive": True}
+    ]
 
 
 def test_api_key_is_not_in_error_messages() -> None:

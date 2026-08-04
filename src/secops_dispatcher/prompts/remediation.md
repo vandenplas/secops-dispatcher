@@ -6,13 +6,18 @@ order, and do not skip a step even if it looks unnecessary.
 - Issue: {{issue_url}}
 - Issue title: {{issue_title}}
 - Repository to fix: `{{repo}}`
-- Tracking project: "{{project_name}}" ({{project_url}})
+- Tracking project: "{{project_name}}" ({{project_url}}) — project number {{project_number}},
+  owned by {{project_owner_kind}} `{{project_owner}}`
 
 Issue body:
 
 ```
 {{issue_body}}
 ```
+
+## Moving the issue on the project board
+
+{{board_access}}
 
 ## Process
 
