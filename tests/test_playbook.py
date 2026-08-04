@@ -128,33 +128,35 @@ def test_dry_run_dispatcher_logs_prompt_and_returns_no_session(caplog) -> None:
     assert dispatcher.dispatched == [ISSUE]
 
 
+# The settings are built inside the test, not here: parametrize arguments are evaluated at
+# collection time, before the fixture that isolates the tests from the environment runs.
 @pytest.mark.parametrize(
-    ("settings", "expected_type", "expected_mode"),
+    ("config", "expected_type", "expected_mode"),
     [
-        (Settings(devin_api_key="cog_k", devin_org_id="org-1"), DevinDispatcher, "devin-api"),
+        ({"devin_api_key": "cog_k", "devin_org_id": "org-1"}, DevinDispatcher, "devin-api"),
         (
-            Settings(devin_api_key="cog_k", devin_org_id="org-1", dry_run=True),
+            {"devin_api_key": "cog_k", "devin_org_id": "org-1", "dry_run": True},
             DryRunDispatcher,
             "dry-run",
         ),
         (
-            Settings(devin_api_key="", devin_org_id="org-1"),
+            {"devin_api_key": "", "devin_org_id": "org-1"},
             DryRunDispatcher,
             "dry-run (DEVIN_API_KEY not set)",
         ),
         (
-            Settings(devin_api_key="cog_k", devin_org_id=""),
+            {"devin_api_key": "cog_k", "devin_org_id": ""},
             DryRunDispatcher,
             "dry-run (DEVIN_ORG_ID not set)",
         ),
         (
-            Settings(devin_api_key="", devin_org_id=""),
+            {"devin_api_key": "", "devin_org_id": ""},
             DryRunDispatcher,
             "dry-run (DEVIN_API_KEY and DEVIN_ORG_ID not set)",
         ),
     ],
 )
-def test_select_dispatcher(settings, expected_type, expected_mode) -> None:
-    dispatcher, mode = select_dispatcher(settings)
+def test_select_dispatcher(config, expected_type, expected_mode) -> None:
+    dispatcher, mode = select_dispatcher(Settings(**config))
     assert isinstance(dispatcher, expected_type)
     assert mode == expected_mode
